@@ -129,6 +129,7 @@ struct key {
 static struct key bindings[] = {
 	/* Back */
 	{ KEY_LEFT,       SEL_BACK },
+	{ KEY_BACKSPACE,  SEL_BACK }, /* UGO */
 	{ 'h',            SEL_BACK },
 	/* Inside or select */
 	{ KEY_ENTER,      SEL_OPEN },
@@ -210,6 +211,7 @@ static struct key bindings[] = {
 	{ CONTROL('T'),   SEL_SORT },
 	/* Redraw window */
 	{ CONTROL('L'),   SEL_REDRAW },
+	{ CONTROL('G'),   SEL_REDRAW }, /* UGO */
 	/* Select current file path */
 	{ CONTROL('J'),   SEL_SEL },
 	{ ' ',            SEL_SEL },
@@ -230,7 +232,8 @@ static struct key bindings[] = {
 	{ 'w',            SEL_CPMVAS },
 	{ CONTROL('W'),   SEL_CPMVAS },
 	/* Delete from selection buffer */
-	{ 'x',            SEL_RM },
+	// { 'x',            SEL_RM },
+	{ KEY_DC  ,       SEL_RM }, /* UGO */
 	{ CONTROL('X'),   SEL_RM },
 	/* Open in a custom application */
 	{ 'o',            SEL_OPENWITH },
@@ -268,8 +271,6 @@ static struct key bindings[] = {
 	{ 'T',            SEL_TIMETYPE },
 	/* Quit a context */
 	{ 'q',            SEL_QUITCTX },
-	/* Change dir on quit */
-	{ CONTROL('G'),   SEL_QUITCD },
 	/* Quit */
 	{ CONTROL('Q'),   SEL_QUIT },
 	/* Quit with an error code */

@@ -1248,7 +1248,7 @@ static char confirm_force(bool selection)
 
 	int r = get_input(str);
 
-	if (r == ESC)
+	if (r == 27 || r == CONTROL('G')) /* UGO: ^G support */
 		return '\0'; /* cancel */
 	if (r == 'y' || r == 'Y')
 		return 'f'; /* forceful */
@@ -2556,7 +2556,7 @@ static int nextsel(int presel)
 
 		if (c == ERR && presel == MSGWAIT)
 			c = (cfg.filtermode || filterset()) ? FILTER : CONTROL('L');
-		else if (c == FILTER || c == CONTROL('L'))
+		else if (c == FILTER || c == CONTROL('L') || c == CONTROL('G')) /* UGO: ^G support */
 			/* Clear previous filter when manually starting */
 			clearfilter();
 	}
@@ -2824,20 +2824,17 @@ static int filterentries(char *path, char *lastname)
 		case KEY_MOUSE:
 			goto end;
 #endif
-		case ESC: /* Exit filter mode on Escape and Alt+key */
-			if (handle_alt_key(ch) != ERR) {
-				if (*ch == ESC) { /* Handle Alt + Esc */
-					if (wln[1]) {
-						ln[REGEX_MAX - 1] = ln[1];
-						ln[1] = wln[1] = '\0';
-						ndents = total;
-						*ch = CONTROL('L');
-					}
-				} else {
-					unget_wch(*ch);
-					*ch = ';';
-				}
+		case ESC: // fallthrough
+		case CONTROL('G'): /* UGO: ^G or Esc cancels filter */
+			if (wln[1]) {
+				ln[REGEX_MAX - 1] = ln[1];
+				ln[1] = wln[1] = '\0';
+				ndents = total;
+				*ch = CONTROL('L');
 			}
+			goto end;
+		case 13: // /* UGO: Enter accepts filter */
+			*ch = 27;
 			goto end;
 		}
 
@@ -6111,6 +6108,7 @@ nochange:
 
 			if (!sb.st_size) {
 				printwait(messages[MSG_EMPTY_FILE], &presel);
+				clearfilter(); /* UGO: ? */
 				goto nochange;
 			}
 
@@ -7317,7 +7315,7 @@ static bool setup_config(void)
 
 	cfgpath = (char *)malloc(len);
 	plgpath = (char *)malloc(len);
-	if (!cfgpath || !plgpath) {
+	if (!cfgpath) { /* UGO: System-wide plugins */
 		xerror();
 		return FALSE;
 	}
@@ -7347,6 +7345,14 @@ static bool setup_config(void)
 			return FALSE;
 		}
 	}
+
+        /* UGO: System-wide plugin plugin path */
+        char *env_plgpath;
+        if ( (env_plgpath = getenv("NNN_PLUGINS_DIR")) )
+        {
+          free(plgpath);
+          plgpath = env_plgpath;
+        }
 
 	/* Set selection file path */
 	if (!g_state.picker) {
@@ -7386,7 +7392,6 @@ static bool set_tmp_path(void)
 static void cleanup(void)
 {
 	free(selpath);
-	free(plgpath);
 	free(cfgpath);
 	free(initpath);
 	free(bmstr);
@@ -7395,6 +7400,7 @@ static void cleanup(void)
 	free(ihashbmp);
 	free(bookmark);
 	free(plug);
+	if (!getenv("NNN_PLUGINS_DIR")) free(plgpath); /* UGO: System-wide plugin path */
 #ifndef NOFIFO
 	if (g_state.autofifo)
 		unlink(fifopath);
