@@ -1,0 +1,16 @@
+#!/bin/zsh
+
+n_chdir()
+{
+  if [[ ! -p "$NNN_PIPE" ]]; then
+    print "Not a pipe: $NNN_PIPE"
+    exit 1
+  fi
+
+  local dir="$1"
+  local context="${2:-0}"
+
+  [[ "$dir" == "." ]] && exit 0
+  [[ "$dir[1]" != "/" ]] && dir="$PWD/$dir"
+  [[ -d "$dir" ]] &&  printf "%sc%s" "$context" "$dir" > "$NNN_PIPE"
+}

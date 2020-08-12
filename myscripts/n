@@ -1,0 +1,20 @@
+#!/bin/zsh
+
+export NNN_PLUGINS_DIR="/usr/local/libexec/nnn/plugins"
+export NNN_CONF_DIR="$HOME/.config/nnn"
+export NNN_SEL="$NNN_CONF_DIR/.selection"
+
+export NNN_OPTS="AcdEHox"
+export NNN_OPENER="my-open"
+export NNN_PLUG='a:finder;f:my-fzfind;m:my-mvup;d:my-fzcd;o:my-open'
+
+(($UID != 0)) && NNN_COLORS=2365 || NNN_COLORS=1111
+export NNN_COLORS
+
+export VISUAL=$EDITOR
+export EDITOR="emacsclient -s main -t -a vim.tiny --"
+
+[[ -n "$LESS" ]] && export LESS=${LESS/F/}
+
+#exec nnn $@
+exec /usr/src/nnn/nnn $@

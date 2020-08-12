@@ -138,7 +138,18 @@ uninstall-desktop:
 	$(RM) $(DESTDIR)$(DESKTOPICONPREFIX)/scalable/apps/nnn.svg
 	$(RM) $(DESTDIR)$(DESKTOPICONPREFIX)/64x64/apps/nnn.png
 
-install: all
+install-custom:
+	$(INSTALL) -m 0755 -d $(DESTDIR)$(PREFIX)/bin
+	$(INSTALL) -m 0755 myscripts/n $(DESTDIR)$(PREFIX)/bin
+	$(INSTALL) -m 0755 myscripts/my-open $(DESTDIR)$(PREFIX)/bin
+	$(INSTALL) -m 0755 -d $(DESTDIR)$(PREFIX)/libexec/nnn/plugins
+	find plugins -maxdepth 1 -type f -name ".*" -print0 \
+	  | xargs -0 cp -vt $(DESTDIR)$(PREFIX)/libexec/nnn/plugins
+	find myplugins -maxdepth 1 -type f -print0 \
+	  | xargs -0 cp -vt $(DESTDIR)$(PREFIX)/libexec/nnn/plugins
+	ln -s $(DESTDIR)$(PREFIX)/bin/my-open $(DESTDIR)$(PREFIX)/libexec/nnn/plugins/my-open
+
+install: all strip install-custom
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(PREFIX)/bin
 	$(INSTALL) -m 0755 $(BIN) $(DESTDIR)$(PREFIX)/bin
 	$(INSTALL) -m 0755 -d $(DESTDIR)$(MANPREFIX)/man1

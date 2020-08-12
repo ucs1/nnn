@@ -1,0 +1,19 @@
+#!/bin/zsh
+
+source "$NNN_PLUGINS_DIR/.my-plugin-helper" \
+  || { print "Plugin helper not loaded."; exit 1 }
+
+SEL=$(fdfind -HI0 -td -tf | fzf -m --read0 --print0 \
+  --bind 'alt-enter:execute(echo -n "__%%CHDIR%%__\0")+accept,ctrl-f:jump')
+
+[[ -z "$SEL" ]] && exit 0
+
+SEL=(${(0)SEL})
+
+if [[ "$SEL[1]" == "__%%CHDIR%%__" ]]; then
+  n_chdir "$(dirname "$SEL[2]")" "+"
+elif [[ -d "$SEL[1]" ]]; then
+  n_chdir "$SEL[1]" "0"
+else
+  print "${(F)SEL}" | ${NNN_OPENER} --menu
+fi

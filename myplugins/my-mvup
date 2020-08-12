@@ -1,0 +1,12 @@
+#!/bin/zsh
+
+SEL=""
+[[ -f "$NNN_SEL" ]] && SEL=$(< "$NNN_SEL")
+
+if [[ -n "$SEL" ]]; then
+	FILES=(${(0)SEL})
+elif (($# > 1)); then
+	FILES="${2}/${1}"
+fi
+
+[[ -n "$FILES" ]] && mv -t .. -- ${FILES}

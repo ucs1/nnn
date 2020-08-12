@@ -1,0 +1,320 @@
+#!/bin/zsh
+
+DEBUG=1
+PICKER=(pick -X)
+TERMINAL_EMU_CMD="urxvtc -title _%T_ -e prompt-wrap _%P_ _%C_"
+# TERMINAL_EMU_CMD="prompt-wrap _%P_ _%C_"
+
+err_exit()
+{
+	local msg=${1+" - $1"}
+	printf "%s: Error%s\n" "$SCRIPTNAME" "$msg" >&2
+	((MENU)) && read -q "?Hit any key to quit."
+	exit ${2-1}
+}
+
+debug()
+{
+	[[ -n "$DEBUG" ]] && print "$@" >&2 || :
+}
+
+find_ext()
+{
+	local filename="$1"
+	local ret=""
+	local ext=(${(s:.:)filename})
+	local arrcount=${#ext}
+	ext="$ext[-1]"
+
+	if (($arrcount > 1)); then
+		ret=$(grep -Esh "^\s*[-+._/[:alnum:]]+(\s+.*\s${ext}|\s+${ext})(\s|$)" \
+			$HOME/.mime.types /etc/mime.types | tail -1)
+	fi
+
+	[[ -n "$ret" ]] && ret="${ret%%[[:space:]]*}"
+	print "$ret"
+}
+
+find_mimetype_by_filename()
+{
+	local filename="$1"
+	local ret=""
+
+	ret=$(find_ext "$filename")
+
+	if [[ -z "$ret" ]]; then
+		if [[ -L "$filename" ]]; then
+			local link_target=$(readlink "$filename")
+			ret=$(find_ext "$link_target")
+		fi
+	fi
+
+	if [[ -z "$ret" ]]; then
+		debug "No match in mailcap, trying mimetype"
+		ret=$(file -bL --mime-type "$filename")
+		[[ -z "$ret" ]] && debug "No match for $filename"
+	fi
+
+	print "$ret"
+}
+
+find_programs_by_mimetype()
+{
+	local numline local match progcmd progname options
+	local match_count=0
+
+	for mailcap in "$HOME/.mailcap" "/etc/mailcap"; do
+
+		for mimetype in "$1" "${1%%/*}/\*"; do
+
+			numline=0
+			grep -Esh "^${mimetype}" "$mailcap" \
+				| while read -r line
+			do
+
+				match=(${(s:;:)line})
+				options="$match[3,-1]"
+
+				[[ "$options" == *"test="*"\$DISPLAY"* && -z "$DISPLAY" ]] \
+					&& continue
+
+				debug "Match: $match[2] | Opts: $options"
+
+				progcmd=${match[2]##[[:space:]]}
+				progcmd=${progcmd##[[:space:]]}
+
+				[[ "$progcmd" == *'$EDITOR'* && -n "$EDITOR" ]] \
+					&& progcmd=${progcmd//\$EDITOR/$EDITOR}
+
+				progname=${progcmd%%[[:space:]]*}
+				progname=${progname##*/}
+
+				[[ -n "$PROGRAMS[$progname]" ]] && continue
+
+				progcmd=${progcmd//\'%s\'/\%s}
+
+				[[ "$options" == *"copiousoutput"* ]] \
+					&& progcmd=${progcmd//\%s/_\%A_}
+
+				if [[ "$options" == *"needsterminal"* && -n "$DISPLAY" && ! -t 1 ]]; then
+
+					local termcmd="${TERMINAL_EMU_CMD//_\%T_/$progname}"
+
+					[[ "$options" == *"test="*"\$PAGER"* ]] \
+						&& termcmd="${termcmd//_\%P_/--pager}" \
+						|| termcmd="${termcmd// _\%P_/}"
+
+					progcmd="${termcmd//_\%C_/$progcmd}"
+
+				elif [[ "$options" == *"test="*"\$PAGER"* ]]; then
+					progcmd="${progcmd}_%P_"
+				fi
+
+				PROGRAMS+=("$progname" "$progcmd")
+
+				if [[ $((++numline)) == 1 ]]; then
+					if [[ "$mailcap" == *".mailcap" ]]; then
+						DEFAULT_USER_PROG="${DEFAULT_USER_PROG:=$progname}"
+					else
+						DEFAULT_SYSTEM_PROG="${DEFAULT_SYSTEM_PROG:=$progname}"
+					fi
+				fi
+
+				((++match_count))
+
+			done
+
+		done
+
+	done
+
+	return $((! $match_count))
+}
+
+populate_programs()
+{
+	MIMETYPE=$(find_mimetype_by_filename "$TESTFILE")
+	[[ -z "$MIMETYPE" ]] && err_exit "No mimetype found for $TESTFILE"
+	find_programs_by_mimetype "$MIMETYPE" || err_exit "No matches for $MIMETYPE"
+}
+
+print_programs()
+{
+	local show_numbers=$1
+	local i=0
+
+	if [[ -n "$DEFAULT_USER_PROG" ]]; then
+		(($show_numbers)) && printf "%i) " $((++i))
+		print "$DEFAULT_USER_PROG"
+	fi
+
+	for key in ${(k)PROGRAMS}; do
+		[[ -n "$DEFAULT_USER_PROG" && "$key" == "$DEFAULT_USER_PROG" ]] && continue
+		(($show_numbers)) && printf "%i) " $((++i))
+		print "${key}"
+	done
+}
+
+pick_program()
+{
+	local prompt="[${MIMETYPE}: "
+	((${#ARGS} > 1)) \
+		&& prompt+="${#ARGS} files to be opened]" \
+		|| prompt+="${ARGS[1]##*/}]"
+
+	print $prompt
+
+	local show_numbers=$1
+	local sel=$(print_programs $show_numbers | ${PICKER} )
+
+	[[ -z "$sel" ]] && exit 0
+	(($show_numbers)) && sel=${sel#*\) }
+	CMD=${PROGRAMS[$sel]}
+}
+
+default_program()
+{
+	if [[ -n "$DEFAULT_USER_PROG" ]]; then
+		CMD=${PROGRAMS[$DEFAULT_USER_PROG]}
+	elif [[ -n "$DEFAULT_SYSTEM_PROG" ]]; then
+		CMD=${PROGRAMS[$DEFAULT_SYSTEM_PROG]}
+	else
+		return 1
+	fi
+
+	return 0
+}
+
+run()
+{
+	local runcmd="$1"
+	local filename="$2"
+	local pager=0
+
+	if [[ "$runcmd" == *"_%P_" ]]; then
+		pager=1
+		[[ -z "$PAGER" ]] && export PAGER=less
+		[[ -n "$LESS" ]] && export LESS=${LESS/F/}
+		runcmd=${runcmd//_%P_/}
+	fi
+
+	if [[ -z "$filename" ]]; then
+		runcmd=${runcmd//_%A_/${ARGS//[[:space:]]/_%20_}}
+		runcmd=(${(s: :)runcmd})
+		debug "MULTI: $runcmd"
+	else
+		runcmd=(${(s: :)runcmd})
+		runcmd=(${runcmd//\%s/$filename})
+		debug "SINGLE: $runcmd"
+	fi
+
+	if (($pager)); then
+
+		${runcmd//_%20_/ } | ${PAGER}
+
+	else
+
+		if [[ -n "$DISPLAY" && ! -t 1 ]]; then
+			${runcmd//_%20_/ } &
+		else
+			${runcmd//_%20_/ }
+		fi
+	fi
+
+}
+
+run_program()
+{
+	if [[ "$CMD" == *"_%A_"* ]]; then
+		run ${CMD}
+	else
+
+		for filename in $ARGS; do
+			run ${CMD} ${filename}
+		done
+
+	fi
+}
+
+nnn_init()
+{
+	MENU=1
+	local sel=""
+	[[ -f "$NNN_SEL" ]] && sel=$(< "$NNN_SEL")
+
+	if [[ -n "$sel" ]]; then
+		ARGS=(${(0)sel})
+		TESTFILE="$ARGS[1]"
+	elif (($#ARGS > 1)); then
+		TESTFILE="${ARGS[2]}/${ARGS[1]}"
+		ARGS=($TESTFILE)
+	fi
+}
+
+pipe_init()
+{
+	ARGS=()
+	local line
+
+	while read -r line
+	do
+		ARGS+=$line
+	done
+	TESTFILE=$ARGS[1]
+
+	exec 0>&1
+}
+
+## MAIN ##
+
+SCRIPTNAME=${0#*/}
+
+typeset -A PROGRAMS
+DEFAULT_USER_PROG=""
+DEFAULT_SYSTEM_PROG=""
+CMD=""
+MENU=0
+
+[[ "$1" == "--menu" ]] && shift && MENU=1
+ARGS=($@)
+TESTFILE="$1"
+
+if [[ ! -t 0 || "$ARGS[1]" == "-" ]]; then
+	pipe_init
+elif [[ -n "$NNN_OPENER" ]]; then
+	nnn_init
+else
+	(($# == 0 )) && print "Usage: $SCRIPTNAME [--menu] file..." && exit 1
+fi
+
+debug "ARGS: $ARGS"
+debug "TESTFILE: $TESTFILE"
+
+[[ -z "$TESTFILE" ]] && exit 0
+
+if [[ -d "$TESTFILE" ]]; then
+
+	TESTFILE=$(find "$TESTFILE" -type f -print -quit)
+	if [[ -z "$TESTFILE" ]]; then
+		MIMETYPE="inode/directory"
+		find_programs_by_mimetype "inode/directory"
+	else
+		populate_programs
+	fi
+
+else
+	populate_programs
+fi
+
+if ((MENU)); then
+	pick_program 1
+else
+	default_program || err_exit "No default for mimetype"
+fi
+
+debug "DEFAULT USER PROG: ${PROGRAMS[$DEFAULT_USER_PROG]}"
+debug "DEFAULT SYSTEM PROG: ${PROGRAMS[$DEFAULT_SYSTEM_PROG]}"
+debug "PROGRAMS: $PROGRAMS[*]"
+debug "CMD: $CMD[*]"
+
+run_program
