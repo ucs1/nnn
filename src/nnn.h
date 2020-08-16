@@ -234,7 +234,7 @@ static struct key bindings[] = {
 	/* Delete from selection buffer */
 	// { 'x',            SEL_RM },
 	{ KEY_DC  ,       SEL_RM }, /* UGO */
-	{ CONTROL('X'),   SEL_RM },
+	{ CONTROL('X'),   SEL_RM }, /* UGO */
 	/* Open in a custom application */
 	{ 'o',            SEL_OPENWITH },
 	{ CONTROL('O'),   SEL_OPENWITH },

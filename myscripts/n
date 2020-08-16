@@ -8,8 +8,14 @@ export NNN_OPTS="AcdEHox"
 export NNN_OPENER="my-open"
 export NNN_PLUG='a:finder;f:my-fzfind;m:my-mvup;d:my-fzcd;o:my-open'
 
-(($UID != 0)) && NNN_COLORS=2365 || NNN_COLORS=1111
+# xterm 256 color codes (in hex, 2 symbols per context)
+# https://upload.wikimedia.org/wikipedia/commons/1/15/Xterm_256color_chart.svg
+(($UID != 0)) && NNN_COLORS="#e2d6c12d" || NNN_COLORS=1111
 export NNN_COLORS
+
+# Specify file-specific colors with xterm 256 color codes (2 hex symbols per color).
+# Order is strict, use 00 to omit/use default terminal color.
+export NNN_FCOLORS="c1e2272e006033f7c6d6ab00"
 
 export VISUAL=$EDITOR
 export EDITOR="emacsclient -s main -t -a vim.tiny --"

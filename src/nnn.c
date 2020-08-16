@@ -2621,8 +2621,8 @@ static int getorderstr(char *sort)
 {
 	int i = 0;
 
-	if (cfg.showhidden)
-		sort[i++] = 'H';
+	// UGO: Indicate filter mode, don't indicate hidden file mode
+	if (filterset()) sort[i++] = 'F';
 
 	if (cfg.timeorder)
 		sort[i++] = (cfg.timetype == T_MOD) ? 'M' : ((cfg.timetype == T_ACCESS) ? 'A' : 'C');
